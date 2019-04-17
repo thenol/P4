@@ -131,8 +131,8 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
     action add_options(){
-        hdr.ipv4options.options = (bit<32>) 0xFFFFFFFF;
-        //add_header(hdr.ipv4options,0xFFFFFFFF);
+        //0,2,number=5,length=4,data=0xffff  => 0 10 00011 00000010 11111111 11111111 => 0x4302ffff
+        hdr.ipv4options.options = (bit<32>) 0x4302ffff;
         hdr.ipv4.ihl =hdr.ipv4.ihl+1;
     }
     
@@ -160,6 +160,12 @@ control MyIngress(inout headers hdr,
     apply {
         // TODO: Update control flow
         if (hdr.ipv4.isValid()) {
+            /*
+            In addition, headers support the following methods:
+                The method isValid() returns the value of the “validity” bit of the header.
+                The method setValid() sets the header's validity bit to “true”. It can only be applied to an l-value.
+                The method setInvalid() sets the header's validity bit to “false”. It can only be applied to an l-value.
+            */
             if(!hdr.ipv4options.isValid()){
                 hdr.ipv4options.setValid();
             }
