@@ -161,7 +161,7 @@ control MyIngress(inout headers hdr,
         // TODO: Update control flow
         if (hdr.ipv4.isValid()) {
             if(!hdr.ipv4options.isValid()){
-                // hdr.ipv4options.setValid();
+                hdr.ipv4options.setValid();
             }
             add_options();//modify option field;
             ipv4_lpm.apply();
