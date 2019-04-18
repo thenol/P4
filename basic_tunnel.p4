@@ -6,6 +6,7 @@
 const bit<16> TYPE_MYTUNNEL = 0x1212;
 const bit<16> TYPE_IPV4 = 0x800;
 
+
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -55,7 +56,19 @@ struct headers {
     IPv4_options_h    ipv4options;
 }
 
-error { HeaderNotValid }
+enum PSA_HashAlgorithm_t {
+  IDENTITY,
+  CRC32,
+  CRC32_CUSTOM,
+  CRC16,
+  CRC16_CUSTOM,
+  ONES_COMPLEMENT16,  /// One's complement 16-bit sum used for IPv4 headers,
+                      /// TCP, and UDP.
+  TARGET_DEFAULT      /// target implementation defined
+}
+
+
+error { HeaderNotValid,HeaderNormal }
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -73,6 +86,9 @@ parser MyParser(packet_in packet,
 
     state parse_ethernet {
         packet.extract(hdr.ethernet);
+        // Hash<bit<32>>(PSA_HashAlgorithm_t.CRC32) h;
+        // bit<16> hash_value = h.get_hash(hdr.ether);
+        // verify(hash_value==hdr.ethernet.)
         transition select(hdr.ethernet.etherType) {
             TYPE_IPV4 : parse_ipv4;
             default : accept;
@@ -131,8 +147,8 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
     action add_options(){
-        //0,2,number=5,length=4,data=0xffff  => 0 10 00011 00000010 11111111 11111111 => 0x4302ffff
-        hdr.ipv4options.options = (bit<32>) 0x4302ffff;
+        //0,2,number=5,length=4,data=0xffff  => 0 10 00011 00000010 00000010 11111111 => 0x4302ffff
+        hdr.ipv4options.options = (bit<32>) 0x43020202;
         hdr.ipv4.ihl =hdr.ipv4.ihl+1;
     }
     
@@ -166,10 +182,11 @@ control MyIngress(inout headers hdr,
                 The method setValid() sets the header's validity bit to “true”. It can only be applied to an l-value.
                 The method setInvalid() sets the header's validity bit to “false”. It can only be applied to an l-value.
             */
-            if(!hdr.ipv4options.isValid()){
+            if(!hdr.ipv4options.isValid()&&hdr.ipv4.ihl<=5){//to control the operation of adding-option happens only one time
                 hdr.ipv4options.setValid();
+                add_options();//modify option field;
             }
-            add_options();//modify option field;
+
             ipv4_lpm.apply();
         }
     }
@@ -191,22 +208,41 @@ control MyEgress(inout headers hdr,
 
 control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
      apply {
-	update_checksum(
-	    hdr.ipv4.isValid(),
-            { hdr.ipv4.version,
-	          hdr.ipv4.ihl,
-              hdr.ipv4.diffserv,
-              hdr.ipv4.totalLen,
-              hdr.ipv4.identification,
-              hdr.ipv4.flags,
-              hdr.ipv4.fragOffset,
-              hdr.ipv4.ttl,
-              hdr.ipv4.protocol,
-              hdr.ipv4.srcAddr,
-              hdr.ipv4.dstAddr,
-              hdr.ipv4options.options},
-            hdr.ipv4.hdrChecksum,
-            HashAlgorithm.csum16);
+         //if(hdr.ipv4.ihl>5){
+             update_checksum(
+                hdr.ipv4.isValid()&&hdr.ipv4.ihl>5,
+                    { hdr.ipv4.version,
+                    hdr.ipv4.ihl,
+                    hdr.ipv4.diffserv,
+                    hdr.ipv4.totalLen,
+                    hdr.ipv4.identification,
+                    hdr.ipv4.flags,
+                    hdr.ipv4.fragOffset,
+                    hdr.ipv4.ttl,
+                    hdr.ipv4.protocol,
+                    hdr.ipv4.srcAddr,
+                    hdr.ipv4.dstAddr,
+                    hdr.ipv4options.options},
+                    hdr.ipv4.hdrChecksum,
+                    HashAlgorithm.csum16);
+         //}else{
+             update_checksum(
+                hdr.ipv4.isValid()&&hdr.ipv4.ihl<=5,
+                    { hdr.ipv4.version,
+                    hdr.ipv4.ihl,
+                    hdr.ipv4.diffserv,
+                    hdr.ipv4.totalLen,
+                    hdr.ipv4.identification,
+                    hdr.ipv4.flags,
+                    hdr.ipv4.fragOffset,
+                    hdr.ipv4.ttl,
+                    hdr.ipv4.protocol,
+                    hdr.ipv4.srcAddr,
+                    hdr.ipv4.dstAddr},
+                    hdr.ipv4.hdrChecksum,
+                    HashAlgorithm.csum16);
+         //}
+	
     }
 }
 
