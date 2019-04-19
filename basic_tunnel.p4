@@ -150,6 +150,7 @@ control MyIngress(inout headers hdr,
         //0,2,number=5,length=4,data=0xffff  => 0 10 00011 00000010 00000010 11111111 => 0x4302ffff
         hdr.ipv4options.options = (bit<32>) 0x43020202;
         hdr.ipv4.ihl =hdr.ipv4.ihl+1;
+        hdr.ipv4.totalLen = hdr.ipv4.totalLen+4;
     }
     
     table ipv4_lpm {
